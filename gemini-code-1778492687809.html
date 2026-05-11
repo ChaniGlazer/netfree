@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>בדיקה לוקלית</title>
+</head>
+<body>
+    <h2>בודק וידאו - הרצה מקומית</h2>
+    <input type="text" id="videoUrl" placeholder="הדביקי קישור יוטיוב">
+    <button onclick="checkVideo()">בדוק</button>
+    <div id="result" style="margin-top:20px; border: 1px solid #ccc; padding: 10px;"></div>
+
+    <script>
+        async function checkVideo() {
+            const url = document.getElementById('videoUrl').value;
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerText = "מנתח... נא להמתין";
+
+            try {
+                // שימי לב שזו הכתובת המדויקת מהצילום מסך שלך
+                const response = await fetch('http://127.0.0.1:5000/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                
+                const data = await response.json();
+                resultDiv.innerText = "תוצאה: " + JSON.stringify(data, null, 2);
+            } catch (error) {
+                resultDiv.innerText = "שגיאה: " + error.message + ". ודאי שהשרת בפייתון רץ וש-CORS מותקן.";
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>
