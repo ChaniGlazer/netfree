@@ -2,35 +2,176 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>בדיקה לוקלית</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת ניתוח AI - לוגים בזמן אמת</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 50px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        h2 {
+            color: #4CAF50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input {
+            flex: 1;
+            padding: 12px;
+            border-radius: 5px;
+            border: 1px solid #333;
+            background: #1e1e1e;
+            color: white;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 12px 25px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+
+        /* עיצוב הטרמינל / לוגים */
+        #console {
+            background-color: #000;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', Courier, monospace;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            line-height: 1.5;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            border-bottom: 1px solid #111;
+            padding-bottom: 4px;
+        }
+
+        .timestamp { color: #888; font-size: 0.85em; margin-left: 10px; }
+        .status-info { color: #00bcd4; }   /* תכלת למידע */
+        .status-success { color: #4CAF50; } /* ירוק להצלחה */
+        .status-error { color: #f44336; }   /* אדום לשגיאה */
+        .status-wait { color: #ffeb3b; }    /* צהוב להמתנה */
+
+        /* אנימציה של סמן מהבהב */
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 18px;
+            background: #4CAF50;
+            animation: blink 1s infinite;
+            vertical-align: middle;
+        }
+
+        @keyframes blink { 50% { opacity: 0; } }
+    </style>
 </head>
 <body>
-    <h2>בודק וידאו - הרצה מקומית</h2>
-    <input type="text" id="videoUrl" placeholder="הדביקי קישור יוטיוב">
-    <button onclick="checkVideo()">בדוק</button>
-    <div id="result" style="margin-top:20px; border: 1px solid #ccc; padding: 10px;"></div>
 
-    <script>
-        async function checkVideo() {
-            const url = document.getElementById('videoUrl').value;
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerText = "מנתח... נא להמתין";
+<div class="container">
+    <h2>  סטטוס שרת</h2>
+    
+    <div class="input-group">
+        <input type="text" id="videoUrl" placeholder="   ...">
+        <button id="btnCheck" onclick="checkVideo()">הרץ ניתוח</button>
+    </div>
 
-            try {
-                // שימי לב שזו הכתובת המדויקת מהצילום מסך שלך
-                const response = await fetch('https://netfree.onrender.com/analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: url })
-                });
-                
-                const data = await response.json();
-                resultDiv.innerText = "תוצאה: " + JSON.stringify(data, null, 2);
-            } catch (error) {
-                resultDiv.innerText = "שגיאה: " + error.message + ". ודאי שהשרת בפייתון רץ וש-CORS מותקן.";
-                console.error(error);
-            }
+    <div id="console">
+        <div class="log-entry status-info">>> המערכת מוכנה לפעולה. המתן לפקודה...<span class="cursor"></span></div>
+    </div>
+</div>
+
+<script>
+    const logContainer = document.getElementById('console');
+    const btnCheck = document.getElementById('btnCheck');
+
+    function addLog(text, type = 'info') {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString();
+        
+        const entry = document.createElement('div');
+        entry.className = `log-entry status-${type}`;
+        entry.innerHTML = `<span class="timestamp">[${timeStr}]</span> > ${text}`;
+        
+        logContainer.appendChild(entry);
+        logContainer.scrollTop = logContainer.scrollHeight; // גלילה אוטומטית למטה
+    }
+
+    async function checkVideo() {
+        const url = document.getElementById('videoUrl').value;
+        if (!url) {
+            addLog("שגיאה: לא הוזן קישור!", "error");
+            return;
         }
-    </script>
+
+        // הכנת הממשק
+        btnCheck.disabled = true;
+        addLog(`מתחיל ניתוח עבור: ${url}`, "info");
+        addLog("מתחבר לשרת ב-Render...", "wait");
+        addLog("שולח בקשה ל-GPT-4o Vision ומוריד פריימים...", "wait");
+
+        try {
+            // שימי לב: עדכנתי לכתובת החדשה שלך מרנדר
+            const response = await fetch('https://netfree-32wy.onrender.com/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url })
+            });
+            
+            const data = await response.json();
+            
+            if (data.decision.includes("ALLOW")) {
+                addLog("תוצאת ניתוח: הוידאו אושר (ALLOW)", "success");
+                addLog(`פירוט: ${data.decision}`, "success");
+            } else {
+                addLog("תוצאת ניתוח: הוידאו נחסם (BLOCK)", "error");
+                addLog(`סיבה: ${data.decision}`, "error");
+            }
+
+        } catch (error) {
+            addLog(`שגיאת תקשורת: ${error.message}`, "error");
+            addLog("ודאי שנטפרי מאשרים את הכתובת onrender.com", "info");
+        } finally {
+            btnCheck.disabled = false;
+            addLog("הפעולה הסתיימה.", "info");
+            logContainer.innerHTML += '<span class="cursor"></span>'; // מחזיר את הסמן המהבהב לסוף
+        }
+    }
+</script>
+
 </body>
 </html>
