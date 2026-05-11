@@ -1,6 +1,8 @@
+flask
+flask-cors
 requests
 openai
 python-dotenv
+urllib3
 yt-dlp
 opencv-python-headless
-urllib3
