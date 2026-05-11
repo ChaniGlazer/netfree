@@ -6,7 +6,7 @@ import urllib3
 import re
 from openai import OpenAI
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 
 # ביטול אזהרות SSL (כמו בקוד המקורי שלך)
@@ -19,6 +19,8 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
+
+
 
 # יצירת תיקיית public אם אינה קיימת
 PUBLIC_DIR = os.path.join(os.getcwd(), 'public')
@@ -124,10 +126,9 @@ def analyze_video_logic(url):
     return f"ALLOW: כל 3 הנקודות נבדקו ואושרו.\n{combined_results}"
 
 # --- נתיבי השרת ---
-
 @app.route('/')
 def home():
-    return "NetFree Video Filter Server is running (3-Frame Check Mode)!", 200
+    return render_template('index.html')
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
