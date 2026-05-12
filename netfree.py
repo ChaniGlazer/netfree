@@ -67,27 +67,32 @@ def analyze_single_image(image_path):
         model="gpt-4o",
         messages=[
             {
-                "role": "system", 
-                "content": "You are a binary content safety classifier. Your final output must start with a single word 'BLOCK' or 'ALLOW' followed by a short explanation."
+                "role": "system",
+                "content": (
+                    "You are a strict binary content safety classifier for a Jewish religious community platform. "
+                    "Your final output must start with exactly one word: 'BLOCK' or 'ALLOW', followed by a brief explanation in Hebrew. "
+                    "CRITICAL TECHNICAL RULE: If the image failed to load, is corrupted, completely black, "
+                    "or shows a YouTube placeholder/error image — respond with ALLOW. Do NOT block for technical reasons."
+                )
             },
             {
                 "role": "user",
                 "content": [
                     {
-                        "type": "text", 
-                        "text": """Analyze this image very carefully and decide 'ALLOW' or 'BLOCK'.
-                        
-                        Rules for BLOCK:
-                        1. A woman or a girl is clearly visible in the image.
-                        2. Secular news logos are present (e.g., Channel 12, 13, 11, CNN, etc.).
-                        3. The background is a professional TV/News studio.
-                        
-                        Rules for ALLOW:
-                        1. Only men or boys are visible.
-                        2. Landscapes, nature, or objects without any women.
-                        3. If there is ONLY text but NO actual woman visible, ALLOW.
-                        
-                        Explain your decision briefly in Hebrew."""
+                        "type": "text",
+                        "text": (
+                            "Analyze this image and decide BLOCK or ALLOW.\n\n"
+                            "━━━ BLOCK only if one of these is clearly true ━━━\n\n"
+                            "1. WOMEN / GIRLS: Any real woman or girl is visible — regardless of how modest she is.\n"
+                            "2. MAN WITHOUT SHIRT: A man whose chest or upper body is clearly exposed.\n"
+                            "3. IMMODEST ANIMATION: Animated or illustrated female figure where body curves are clearly visible in a revealing or tight outfit.\n"
+                            "4. FOOTBALL / BASKETBALL: Gameplay, training, tutorials, or logos related to football or basketball.\n"
+                            "5. SECULAR TV CHANNEL: Logos of secular channels (Channel 12, 13, 11, N12, Kan, CNN, BBC, Fox, etc.) or a professional news studio setting.\n\n"
+                            "━━━ ALLOW in every other case ━━━\n\n"
+                            "If you are not certain — respond ALLOW.\n"
+                            "If the image is broken, black, or a placeholder — respond ALLOW.\n\n"
+                            "Explain your decision briefly in Hebrew."
+                        )
                     },
                     {
                         "type": "image_url",
@@ -100,30 +105,27 @@ def analyze_single_image(image_path):
     )
     return ai_resp.choices[0].message.content.strip()
 
+
 def analyze_video_logic(url):
     video_id = get_video_id(url)
     if not video_id:
         return "שגיאה: לא הצלחתי לזהות את מזהה הסרטון."
 
-    # 1. הורדת 3 תמונות ושמירתן ב-public
     frames = download_and_save_frames(video_id)
     
     if not frames:
-        return "BLOCK: לא ניתן להוריד תמונות מהסרטון לבדיקה."
+        return "ALLOW: לא ניתן להוריד תמונות — הסרטון נפתח (כשל טכני בלבד)."
 
-    # 2. מעבר על כל התמונות ובדיקה ב-AI
     results = []
     for i, frame_path in enumerate(frames):
         decision = analyze_single_image(frame_path)
         results.append(f"תמונה {i+1}: {decision}")
-        
-        # אם אחת מהתמונות נחסמה - חוסמים את הכל מיד
-        if "BLOCK" in decision.upper():
-            return f"נחסם (בדיקה {i+1}): {decision}"
 
-    # אם הגענו לכאן, הכל עבר בהצלחה
+        if "BLOCK" in decision.upper():
+            return f"BLOCK (בדיקה {i+1}): {decision}"
+
     combined_results = "\n".join(results)
-    return f"ALLOW: כל 3 הנקודות נבדקו ואושרו.\n{combined_results}"
+    return f"ALLOW: כל התמונות נבדקו ואושרו.\n{combined_results}"
 
 # --- נתיבי השרת ---
 @app.route('/')
