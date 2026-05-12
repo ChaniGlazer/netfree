@@ -59,7 +59,6 @@ def download_and_save_frames(video_id):
     return frames_paths
 
 def analyze_single_image(image_path):
-    """מבצע את לוגיקת ה-AI על תמונה ספציפית עם ה-Rules שלך"""
     with open(image_path, "rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode('utf-8')
 
@@ -69,12 +68,12 @@ def analyze_single_image(image_path):
             {
                 "role": "system",
                 "content": (
-                   
-    "You are a strict binary content safety classifier for a Jewish religious community platform. "
-    "Your final output must start with exactly one word: 'BLOCK' or 'ALLOW', followed by a brief explanation in Hebrew. "
-    "CRITICAL TECHNICAL RULE: YouTube often returns a black or gray placeholder image when the video thumbnail is unavailable. "
-    "A black image, gray image, very dark image, or any image with no clear visible content is a TECHNICAL FAILURE — respond ALLOW immediately. "
-    "Do NOT block for technical reasons. Only BLOCK based on actual visible content."
+                    "You are a strict binary content safety classifier for a Jewish religious community platform. "
+                    "Your final output must start with exactly one word: 'BLOCK' or 'ALLOW', followed by a brief explanation in Hebrew. "
+                    "CRITICAL TECHNICAL RULE: YouTube often returns a black or gray placeholder image when the video thumbnail is unavailable. "
+                    "A black image, gray image, very dark image, or any image with no clear visible content is a TECHNICAL FAILURE — respond ALLOW immediately. "
+                    "Do NOT block for technical reasons. Only BLOCK based on actual visible content. "
+                    "IMPORTANT: Men and boys are always ALLOWED unless clearly shirtless. Never block a man who is wearing any clothing on his upper body."
                 )
             },
             {
@@ -88,7 +87,9 @@ def analyze_single_image(image_path):
                             "Analyze this image and decide BLOCK or ALLOW.\n\n"
                             "━━━ BLOCK only if one of these is clearly true ━━━\n\n"
                             "1. WOMEN / GIRLS: Any real woman or girl is visible — regardless of how modest she is.\n"
-                            "2. MAN WITHOUT SHIRT: A man whose chest or upper body is clearly exposed.\n"
+                            "2. SHIRTLESS MAN: A man who is clearly shirtless — chest or upper body visibly exposed with no shirt. "
+                            "A clothed man (t-shirt, suit, sportswear, hoodie, etc.) must be ALLOWED. "
+                            "NEVER block a man just for being a man.\n"
                             "3. IMMODEST ANIMATION: Animated or illustrated female figure where body curves are clearly visible in a revealing or tight outfit.\n"
                             "4. FOOTBALL / BASKETBALL: Gameplay, training, tutorials, or logos related to football or basketball.\n"
                             "5. SECULAR TV CHANNEL: Logos of secular channels (Channel 12, 13, 11, N12, Kan, CNN, BBC, Fox, etc.) or a professional news studio setting.\n\n"
