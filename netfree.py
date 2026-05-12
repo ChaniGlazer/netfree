@@ -68,7 +68,7 @@ def analyze_single_image(image_path):
         messages=[
             {
                 "role": "system", 
-                "content": "You are a strict content filter."
+                "content": "You are a binary content safety classifier. Your final output must start with a single word 'BLOCK' or 'ALLOW' followed by a short explanation."
             },
             {
                 "role": "user",
