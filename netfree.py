@@ -69,10 +69,12 @@ def analyze_single_image(image_path):
             {
                 "role": "system",
                 "content": (
-                    "You are a strict binary content safety classifier for a Jewish religious community platform. "
-                    "Your final output must start with exactly one word: 'BLOCK' or 'ALLOW', followed by a brief explanation in Hebrew. "
-                    "CRITICAL TECHNICAL RULE: If the image failed to load, is corrupted, completely black, "
-                    "or shows a YouTube placeholder/error image — respond with ALLOW. Do NOT block for technical reasons."
+                   
+    "You are a strict binary content safety classifier for a Jewish religious community platform. "
+    "Your final output must start with exactly one word: 'BLOCK' or 'ALLOW', followed by a brief explanation in Hebrew. "
+    "CRITICAL TECHNICAL RULE: YouTube often returns a black or gray placeholder image when the video thumbnail is unavailable. "
+    "A black image, gray image, very dark image, or any image with no clear visible content is a TECHNICAL FAILURE — respond ALLOW immediately. "
+    "Do NOT block for technical reasons. Only BLOCK based on actual visible content."
                 )
             },
             {
@@ -81,6 +83,8 @@ def analyze_single_image(image_path):
                     {
                         "type": "text",
                         "text": (
+                            "FIRST CHECK: Is this image black, gray, nearly empty, or a generic placeholder with no real content? "
+                            "If yes — respond ALLOW immediately (technical failure). Do not apply any content rules.\n\n"
                             "Analyze this image and decide BLOCK or ALLOW.\n\n"
                             "━━━ BLOCK only if one of these is clearly true ━━━\n\n"
                             "1. WOMEN / GIRLS: Any real woman or girl is visible — regardless of how modest she is.\n"
@@ -112,7 +116,7 @@ def analyze_video_logic(url):
         return "שגיאה: לא הצלחתי לזהות את מזהה הסרטון."
 
     frames = download_and_save_frames(video_id)
-    
+
     if not frames:
         return "ALLOW: לא ניתן להוריד תמונות — הסרטון נפתח (כשל טכני בלבד)."
 
