@@ -32,10 +32,8 @@ def get_video_id(url):
     match = re.search(pattern, url)
     return match.group(1) if match else None
 
-def download_and_save_frames(video_id):
-    """מוריד 3 תמונות מנקודות זמן שונות ושומר בתיקיית public"""
-    frames_paths = []
-    # hq1, hq2, hq3 הן תמונות מנקודות זמן שונות ביוטיוב (התחלה, אמצע, סוף)
+def download_and_save_frame(video_id, index):
+    """מוריד תמונה אחת לפי אינדקס"""
     urls = [
         f"https://img.youtube.com/vi/{video_id}/hq1.jpg",
         f"https://img.youtube.com/vi/{video_id}/hq2.jpg",
@@ -44,21 +42,21 @@ def download_and_save_frames(video_id):
     
     headers = {'User-Agent': 'Mozilla/5.0'}
     
-    for i, url in enumerate(urls):
-        try:
-            response = requests.get(url, headers=headers, verify=False, timeout=10)
-            if response.status_code == 200:
-                filename = f"{video_id}_frame_{i+1}.jpg"
-                filepath = os.path.join(PUBLIC_DIR, filename)
-                with open(filepath, 'wb') as f:
-                    f.write(response.content)
-                frames_paths.append(filepath)
-        except Exception as e:
-            print(f"Error downloading frame {i}: {e}")
-            
-    return frames_paths
+    try:
+        response = requests.get(urls[index], headers=headers, verify=False, timeout=10)
+        if response.status_code == 200:
+            filename = f"{video_id}_frame_{index+1}.jpg"
+            filepath = os.path.join(PUBLIC_DIR, filename)
+            with open(filepath, 'wb') as f:
+                f.write(response.content)
+            return filepath
+    except Exception as e:
+        print(f"Error downloading frame {index}: {e}")
+    
+    return None
 
 def analyze_single_image(image_path):
+    """מבצע את לוגיקת ה-AI על תמונה ספציפית עם ה-Rules שלך"""
     with open(image_path, "rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode('utf-8')
 
@@ -66,38 +64,27 @@ def analyze_single_image(image_path):
         model="gpt-4o",
         messages=[
             {
-                "role": "system",
-                "content": (
-                    "You are a strict binary content safety classifier for a Jewish religious community platform. "
-                    "Your final output must start with exactly one word: 'BLOCK' or 'ALLOW', followed by a brief explanation in Hebrew. "
-                    "CRITICAL TECHNICAL RULE: YouTube often returns a black or gray placeholder image when the video thumbnail is unavailable. "
-                    "A black image, gray image, very dark image, or any image with no clear visible content is a TECHNICAL FAILURE — respond ALLOW immediately. "
-                    "Do NOT block for technical reasons. Only BLOCK based on actual visible content. "
-                    "IMPORTANT: Men and boys are always ALLOWED unless clearly shirtless. Never block a man who is wearing any clothing on his upper body."
-                )
+                "role": "system", 
+                "content": "You are a strict content filter."
             },
             {
                 "role": "user",
                 "content": [
                     {
-                        "type": "text",
-                        "text": (
-                            "FIRST CHECK: Is this image black, gray, nearly empty, or a generic placeholder with no real content? "
-                            "If yes — respond ALLOW immediately (technical failure). Do not apply any content rules.\n\n"
-                            "Analyze this image and decide BLOCK or ALLOW.\n\n"
-                            "━━━ BLOCK only if one of these is clearly true ━━━\n\n"
-                            "1. WOMEN / GIRLS: Any real woman or girl is visible — regardless of how modest she is.\n"
-                            "2. SHIRTLESS MAN: A man who is clearly shirtless — chest or upper body visibly exposed with no shirt. "
-                            "A clothed man (t-shirt, suit, sportswear, hoodie, etc.) must be ALLOWED. "
-                            "NEVER block a man just for being a man.\n"
-                            "3. IMMODEST ANIMATION: Animated or illustrated female figure where body curves are clearly visible in a revealing or tight outfit.\n"
-                            "4. FOOTBALL / BASKETBALL: Gameplay, training, tutorials, or logos related to football or basketball.\n"
-                            "5. SECULAR TV CHANNEL: Logos of secular channels (Channel 12, 13, 11, N12, Kan, CNN, BBC, Fox, etc.) or a professional news studio setting.\n\n"
-                            "━━━ ALLOW in every other case ━━━\n\n"
-                            "If you are not certain — respond ALLOW.\n"
-                            "If the image is broken, black, or a placeholder — respond ALLOW.\n\n"
-                            "Explain your decision briefly in Hebrew."
-                        )
+                        "type": "text", 
+                        "text": """Analyze this image very carefully and decide 'ALLOW' or 'BLOCK'.
+                        
+                        Rules for BLOCK:
+                        1. A woman or a girl is clearly visible in the image.
+                        2. Secular news logos are present (e.g., Channel 12, 13, 11, CNN, etc.).
+                        3. The background is a professional TV/News studio.
+                        
+                        Rules for ALLOW:
+                        1. Only men or boys are visible.
+                        2. Landscapes, nature, or objects without any women.
+                        3. If there is ONLY text but NO actual woman visible, ALLOW.
+                        
+                        Explain your decision briefly in Hebrew."""
                     },
                     {
                         "type": "image_url",
@@ -111,27 +98,30 @@ def analyze_single_image(image_path):
     return ai_resp.choices[0].message.content.strip()
 
 
+
+
 def analyze_video_logic(url):
     video_id = get_video_id(url)
     if not video_id:
         return "שגיאה: לא הצלחתי לזהות את מזהה הסרטון."
 
-    frames = download_and_save_frames(video_id)
-
-    if not frames:
-        return "ALLOW: לא ניתן להוריד תמונות — הסרטון נפתח (כשל טכני בלבד)."
-
-    results = []
-    for i, frame_path in enumerate(frames):
+    for i in range(3):
+        # הורד תמונה אחת בכל פעם
+        frame_path = download_and_save_frame(video_id, i)
+        
+        if not frame_path:
+            continue  # הורדה נכשלה - נסה את הבאה
+        
         decision = analyze_single_image(frame_path)
-        results.append(f"תמונה {i+1}: {decision}")
-
+        
         if "BLOCK" in decision.upper():
-            return f"BLOCK (בדיקה {i+1}): {decision}"
+            return f"נחסם (בדיקה {i+1}): {decision}"
+        
+        # אם זו התמונה האחרונה ועברה - ALLOW סופי
+        if i == 2:
+            return f"ALLOW: כל 3 הנקודות נבדקו ואושרו.\nתמונה {i+1}: {decision}"
 
-    combined_results = "\n".join(results)
-    return f"ALLOW: כל התמונות נבדקו ואושרו.\n{combined_results}"
-
+    return "ALLOW: לא ניתן להוריד תמונות — כשל טכני בלבד."
 # --- נתיבי השרת ---
 @app.route('/')
 def home():
