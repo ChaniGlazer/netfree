@@ -62,10 +62,11 @@ def analyze_single_image(image_path):
 
     ai_resp = client.chat.completions.create(
         model="gpt-4o",
+  
         messages=[
             {
                 "role": "system", 
-                "content": "You are a strict content filter."
+                "content": "You are a strict content filter. Never imagine or assume content that is not clearly visible. Only block what you can actually see and confirm."
             },
             {
                 "role": "user",
@@ -73,17 +74,21 @@ def analyze_single_image(image_path):
                     {
                         "type": "text", 
                         "text": """Analyze this image very carefully and decide 'ALLOW' or 'BLOCK'.
-                        
+
+                        IMPORTANT TECHNICAL RULES (highest priority):
+                        1. If the image could not be loaded or is unavailable → ALLOW.
+                        2. If you could not extract or identify a video ID → ALLOW.
+                        3. Never imagine or infer content that is not clearly visible in the image.
+                        4. Default is ALLOW — only block if one of the rules below is clearly met.
+
                         Rules for BLOCK:
-                        1. A woman or a girl is clearly visible in the image.
-                        2. Secular news logos are present (e.g., Channel 12, 13, 11, CNN, etc.).
-                        3. The background is a professional TV/News studio.
-                        
-                        Rules for ALLOW:
-                        1. Only men or boys are visible.
-                        2. Landscapes, nature, or objects without any women.
-                        3. If there is ONLY text but NO actual woman visible, ALLOW.
-                        
+                        1. A real (photographic) woman or girl above age 6 is clearly visible — regardless of modesty.
+                        2. A non-modest illustrated/drawn woman or girl above age 6 is clearly visible.
+                        3. Secular news logos are present (e.g., Channel 12, 13, 11, CNN, etc.).
+                        4. A man or bige boy is clearly visible with an exposed stomach (midriff showing).
+
+                        Everything else → ALLOW.
+
                         Explain your decision briefly in Hebrew."""
                     },
                     {
@@ -93,6 +98,7 @@ def analyze_single_image(image_path):
                 ],
             }
         ],
+   
         max_tokens=150
     )
     return ai_resp.choices[0].message.content.strip()
