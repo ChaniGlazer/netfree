@@ -4,145 +4,330 @@ import os
 import ssl
 import urllib3
 import re
+import time
+
 from openai import OpenAI
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 
-# ביטול אזהרות SSL (כמו בקוד המקורי שלך)
+# =========================================================
+# SSL
+# =========================================================
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
+
+if (
+    not os.environ.get('PYTHONHTTPSVERIFY', '')
+    and getattr(ssl, '_create_unverified_context', None)
+):
     ssl._create_default_https_context = ssl._create_unverified_context
 
+# =========================================================
+# ENV
+# =========================================================
+
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    timeout=20
+)
+
+# =========================================================
+# FLASK
+# =========================================================
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# =========================================================
+# PUBLIC DIR
+# =========================================================
 
-
-# יצירת תיקיית public אם אינה קיימת
 PUBLIC_DIR = os.path.join(os.getcwd(), 'public')
+
 if not os.path.exists(PUBLIC_DIR):
     os.makedirs(PUBLIC_DIR)
 
-def get_video_id(url):
-    pattern = r'(?:v=|\/|be\/)([0-9A-Za-z_-]{11})'
-    match = re.search(pattern, url)
-    return match.group(1) if match else None
+# =========================================================
+# YOUTUBE VIDEO ID
+# =========================================================
 
-def download_and_save_frame(video_id, index):
-    """מוריד תמונה אחת לפי אינדקס"""
-    urls = [
-        f"https://img.youtube.com/vi/{video_id}/hq1.jpg",
-        f"https://img.youtube.com/vi/{video_id}/hq2.jpg",
-        f"https://img.youtube.com/vi/{video_id}/hq3.jpg"
+def get_video_id(url):
+    patterns = [
+        r'(?:v=|\/)([0-9A-Za-z_-]{11})',
+        r'youtu\.be\/([0-9A-Za-z_-]{11})'
     ]
-    
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    
-    try:
-        response = requests.get(urls[index], headers=headers, verify=False, timeout=10)
-        if response.status_code == 200:
-            filename = f"{video_id}_frame_{index+1}.jpg"
-            filepath = os.path.join(PUBLIC_DIR, filename)
-            with open(filepath, 'wb') as f:
-                f.write(response.content)
-            return filepath
-    except Exception as e:
-        print(f"Error downloading frame {index}: {e}")
-    
+
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+
     return None
 
+# =========================================================
+# DOWNLOAD IMAGE
+# =========================================================
+
+def download_and_save_frame(video_id, index):
+    """
+    מוריד תמונה לפי אינדקס
+    """
+
+    thumbnail_sets = [
+        [
+            f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg",
+            f"https://img.youtube.com/vi/{video_id}/sddefault.jpg",
+            f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg",
+            f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg"
+        ],
+        [
+            f"https://img.youtube.com/vi/{video_id}/hq1.jpg",
+            f"https://img.youtube.com/vi/{video_id}/hq2.jpg",
+            f"https://img.youtube.com/vi/{video_id}/hq3.jpg"
+        ]
+    ]
+
+    all_urls = thumbnail_sets[0] + thumbnail_sets[1]
+
+    if index >= len(all_urls):
+        return None
+
+    url = all_urls[index]
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0'
+    }
+
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            verify=False,
+            timeout=10
+        )
+
+        if response.status_code != 200:
+            return None
+
+        # הגנה מתמונות ריקות/קטנות מדי
+        if len(response.content) < 5000:
+            return None
+
+        filename = f"{video_id}_frame_{index + 1}.jpg"
+        filepath = os.path.join(PUBLIC_DIR, filename)
+
+        with open(filepath, 'wb') as f:
+            f.write(response.content)
+
+        return filepath
+
+    except Exception as e:
+        print(f"❌ Error downloading frame {index}: {e}")
+        return None
+
+# =========================================================
+# AI ANALYZE IMAGE
+# =========================================================
+
 def analyze_single_image(image_path):
-    """מבצע את לוגיקת ה-AI על תמונה ספציפית עם ה-Rules שלך"""
+    """
+    מנתח תמונה אחת עם GPT-4o
+    """
+
     with open(image_path, "rb") as image_file:
-        base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+        base64_image = base64.b64encode(
+            image_file.read()
+        ).decode('utf-8')
 
-    ai_resp = client.chat.completions.create(
-        model="gpt-4o",
-  
-        messages=[
-            {
-                "role": "system", 
-                "content": "You are a strict content filter. Never imagine or assume content that is not clearly visible. Only block what you can actually see and confirm."
-            },
-            {
-                "role": "user",
-                "content": [
+    for attempt in range(3):
+
+        try:
+
+            ai_resp = client.chat.completions.create(
+                model="gpt-4o",
+
+                messages=[
                     {
-                        "type": "text", 
-                        "text": """Analyze this image very carefully and decide 'ALLOW' or 'BLOCK'.
+                        "role": "system",
+                        "content": """
+You are a highly conservative image moderation system.
 
-                        IMPORTANT TECHNICAL RULES (highest priority):
-                        1. If the image could not be loaded or is unavailable → ALLOW.
-                        2. If you could not extract or identify a video ID → ALLOW.
-                        3. Never imagine or infer content that is not clearly visible in the image.
-                        4. Default is ALLOW — only block if one of the rules below is clearly met.
+Your job is ONLY to decide:
+ALLOW
+or
+BLOCK
 
-                        Rules for BLOCK:
-                        1. A real (photographic) woman or girl above age 6 is clearly visible — regardless of modesty.
-                        2. A non-modest illustrated/drawn woman or girl above age 6 is clearly visible.
-                        3. Secular news logos are present (e.g., Channel 12, 13, 11, CNN, etc.).
-                        4. 4. An exposed stomach is clearly visible — unless it belongs to a baby.
+CRITICAL RULES:
+- Default is ALWAYS ALLOW.
+- NEVER guess, infer, estimate, hallucinate, or assume details.
+- ONLY block when forbidden content is clearly and confidently visible.
+- If uncertain even slightly → ALLOW.
+- False positives are extremely bad.
+- Ignore blurry, tiny, dark, cropped, partial, distant, unclear, or ambiguous content.
+- Ignore reflections, silhouettes, shadows, emojis, dolls, toys, mannequins, tiny thumbnails, abstract art, and unclear figures.
+- Only evaluate what is actually visible in the image.
 
-                        Everything else → ALLOW.
+BLOCK ONLY IF:
+1. A real female older than about 5 is clearly visible.
+2. A clear drawing/cartoon/illustration of a female older than about 5 is clearly visible.
+3. A clearly recognizable secular TV/news logo is visible.
+4. A clearly visible exposed stomach on a non-baby person.
 
-                        Explain your decision briefly in Hebrew."""
+IMPORTANT:
+- Babies and toddlers → ALLOW.
+- Men and boys → ALLOW.
+- Unclear gender → ALLOW.
+- Covered stomach → ALLOW.
+- Unclear logo → ALLOW.
+- Technical problems → ALLOW.
+
+Return ONLY:
+ALLOW
+or
+BLOCK
+"""
                     },
                     {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Analyze this image according to the moderation rules."
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
                     }
                 ],
-            }
-        ],
-   
-        max_tokens=150
-    )
-    return ai_resp.choices[0].message.content.strip()
 
+                temperature=0,
+                max_tokens=5
+            )
 
+            decision = (
+                ai_resp.choices[0]
+                .message
+                .content
+                .strip()
+                .upper()
+            )
 
+            if decision not in ["ALLOW", "BLOCK"]:
+                return "ALLOW"
+
+            return decision
+
+        except Exception as e:
+            print(f"❌ GPT Error attempt {attempt + 1}: {e}")
+
+            if attempt < 2:
+                time.sleep(1)
+
+    return "ALLOW"
+
+# =========================================================
+# MAIN VIDEO ANALYSIS
+# =========================================================
 
 def analyze_video_logic(url):
+
     video_id = get_video_id(url)
+
     if not video_id:
-        return "שגיאה: לא הצלחתי לזהות את מזהה הסרטון."
+        return "ALLOW"
 
-    for i in range(3):
-        # הורד תמונה אחת בכל פעם
+    total_checked = 0
+
+    # בודק עד 7 thumbnails
+    for i in range(7):
+
         frame_path = download_and_save_frame(video_id, i)
-        
-        if not frame_path:
-            continue  # הורדה נכשלה - נסה את הבאה
-        
-        decision = analyze_single_image(frame_path)
-        
-        if "BLOCK" in decision.upper():
-            return f"נחסם (בדיקה {i+1}): {decision}"
-        
-        # אם זו התמונה האחרונה ועברה - ALLOW סופי
-        if i == 2:
-            return f"ALLOW: כל 3 הנקודות נבדקו ואושרו.\nתמונה {i+1}: {decision}"
 
-    return "ALLOW: לא ניתן להוריד תמונות — כשל טכני בלבד."
-# --- נתיבי השרת ---
+        if not frame_path:
+            continue
+
+        total_checked += 1
+
+        try:
+
+            decision = analyze_single_image(frame_path)
+
+            print(f"🖼️ Frame {i + 1}: {decision}")
+
+            if decision == "BLOCK":
+                return "BLOCK"
+
+        finally:
+
+            # מחיקת הקובץ אחרי שימוש
+            try:
+                os.remove(frame_path)
+            except:
+                pass
+
+    # אם לא הצלחנו לבדוק כלום → ALLOW
+    if total_checked == 0:
+        return "ALLOW"
+
+    return "ALLOW"
+
+# =========================================================
+# ROUTES
+# =========================================================
+
 @app.route('/')
 def home():
     return render_template('index.html')
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    data = request.json
-    url = data.get('url')
-    if not url:
-        return jsonify({"error": "No URL provided"}), 400
-    
-    result = analyze_video_logic(url)
-    return jsonify({"decision": result})
+
+    try:
+
+        data = request.json
+
+        if not data:
+            return jsonify({
+                "decision": "ALLOW"
+            })
+
+        url = data.get('url')
+
+        if not url:
+            return jsonify({
+                "decision": "ALLOW"
+            })
+
+        result = analyze_video_logic(url)
+
+        return jsonify({
+            "decision": result
+        })
+
+    except Exception as e:
+
+        print(f"❌ Server Error: {e}")
+
+        return jsonify({
+            "decision": "ALLOW"
+        })
+
+# =========================================================
+# START SERVER
+# =========================================================
 
 if __name__ == "__main__":
+
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+
+    app.run(
+        host='0.0.0.0',
+        port=port
+    )
