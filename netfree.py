@@ -12,7 +12,7 @@ from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 
 # =========================================================
-# SSL
+# הגדרות SSL
 # =========================================================
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -24,7 +24,7 @@ if (
     ssl._create_default_https_context = ssl._create_unverified_context
 
 # =========================================================
-# ENV
+# טעינת משתני סביבה
 # =========================================================
 
 load_dotenv()
@@ -35,14 +35,14 @@ client = OpenAI(
 )
 
 # =========================================================
-# FLASK
+# הגדרות Flask
 # =========================================================
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # =========================================================
-# PUBLIC DIR
+# יצירת תיקיית public אם לא קיימת
 # =========================================================
 
 PUBLIC_DIR = os.path.join(os.getcwd(), 'public')
@@ -51,30 +51,30 @@ if not os.path.exists(PUBLIC_DIR):
     os.makedirs(PUBLIC_DIR)
 
 # =========================================================
-# YOUTUBE VIDEO ID
+# חילוץ מזהה סרטון יוטיוב
 # =========================================================
 
 def get_video_id(url):
+
     patterns = [
         r'(?:v=|\/)([0-9A-Za-z_-]{11})',
         r'youtu\.be\/([0-9A-Za-z_-]{11})'
     ]
 
     for pattern in patterns:
+
         match = re.search(pattern, url)
+
         if match:
             return match.group(1)
 
     return None
 
 # =========================================================
-# DOWNLOAD IMAGE
+# הורדת thumbnail מיוטיוב
 # =========================================================
 
 def download_and_save_frame(video_id, index):
-    """
-    מוריד תמונה לפי אינדקס
-    """
 
     thumbnail_sets = [
         [
@@ -102,6 +102,9 @@ def download_and_save_frame(video_id, index):
     }
 
     try:
+
+        print(f"📥 מוריד תמונה {index + 1}")
+
         response = requests.get(
             url,
             headers=headers,
@@ -110,34 +113,41 @@ def download_and_save_frame(video_id, index):
         )
 
         if response.status_code != 200:
+
+            print(f"⚠️ הורדת תמונה נכשלה: {response.status_code}")
             return None
 
-        # הגנה מתמונות ריקות/קטנות מדי
-        if len(response.content) < 5000:
+        # הגנה מתמונות קטנות/ריקות
+        if len(response.content) < 1000:
+
+            print("⚠️ התמונה קטנה מדי")
             return None
 
         filename = f"{video_id}_frame_{index + 1}.jpg"
+
         filepath = os.path.join(PUBLIC_DIR, filename)
 
         with open(filepath, 'wb') as f:
             f.write(response.content)
 
+        print(f"✅ תמונה נשמרה: {filename}")
+
         return filepath
 
     except Exception as e:
-        print(f"❌ Error downloading frame {index}: {e}")
+
+        print(f"❌ שגיאה בהורדת תמונה: {e}")
+
         return None
 
 # =========================================================
-# AI ANALYZE IMAGE
+# ניתוח תמונה באמצעות GPT
 # =========================================================
 
 def analyze_single_image(image_path):
-    """
-    מנתח תמונה אחת עם GPT-4o
-    """
 
     with open(image_path, "rb") as image_file:
+
         base64_image = base64.b64encode(
             image_file.read()
         ).decode('utf-8')
@@ -147,6 +157,7 @@ def analyze_single_image(image_path):
         try:
 
             ai_resp = client.chat.completions.create(
+
                 model="gpt-4o",
 
                 messages=[
@@ -155,20 +166,19 @@ def analyze_single_image(image_path):
                         "content": """
 You are a highly conservative image moderation system.
 
-Your job is ONLY to decide:
+Your job is to decide:
 ALLOW
 or
 BLOCK
 
-CRITICAL RULES:
+If you BLOCK:
+you MUST also provide a short reason.
+
+Rules:
 - Default is ALWAYS ALLOW.
-- NEVER guess, infer, estimate, hallucinate, or assume details.
-- ONLY block when forbidden content is clearly and confidently visible.
+- NEVER guess or infer.
+- ONLY block when forbidden content is clearly visible.
 - If uncertain even slightly → ALLOW.
-- False positives are extremely bad.
-- Ignore blurry, tiny, dark, cropped, partial, distant, unclear, or ambiguous content.
-- Ignore reflections, silhouettes, shadows, emojis, dolls, toys, mannequins, tiny thumbnails, abstract art, and unclear figures.
-- Only evaluate what is actually visible in the image.
 
 BLOCK ONLY IF:
 1. A real female older than about 5 is clearly visible.
@@ -176,18 +186,18 @@ BLOCK ONLY IF:
 3. A clearly recognizable secular TV/news logo is visible.
 4. A clearly visible exposed stomach on a non-baby person.
 
-IMPORTANT:
-- Babies and toddlers → ALLOW.
-- Men and boys → ALLOW.
-- Unclear gender → ALLOW.
-- Covered stomach → ALLOW.
-- Unclear logo → ALLOW.
-- Technical problems → ALLOW.
-
-Return ONLY:
+Output format:
 ALLOW
+
 or
-BLOCK
+
+BLOCK | reason
+
+Examples:
+BLOCK | Real woman visible
+BLOCK | TV news logo visible
+BLOCK | Exposed stomach visible
+ALLOW
 """
                     },
                     {
@@ -208,44 +218,81 @@ BLOCK
                 ],
 
                 temperature=0,
-                max_tokens=5
+                max_tokens=20
             )
 
-            decision = (
-                ai_resp.choices[0]
-                .message
-                .content
-                .strip()
-                .upper()
-            )
+            content = ai_resp.choices[0].message.content
 
-            if decision not in ["ALLOW", "BLOCK"]:
-                return "ALLOW"
+            if not content:
 
-            return decision
+                print("⚠️ GPT לא החזיר תוכן")
+
+                return {
+                    "decision": "ALLOW",
+                    "reason": "אין תשובה מהמודל"
+                }
+
+            content = content.strip()
+
+            print(f"🤖 תשובת GPT: {content}")
+
+            if content.upper().startswith("BLOCK"):
+
+                parts = content.split("|", 1)
+
+                reason = (
+                    parts[1].strip()
+                    if len(parts) > 1
+                    else "ללא סיבה"
+                )
+
+                return {
+                    "decision": "BLOCK",
+                    "reason": reason
+                }
+
+            return {
+                "decision": "ALLOW",
+                "reason": "עבר בהצלחה"
+            }
 
         except Exception as e:
-            print(f"❌ GPT Error attempt {attempt + 1}: {e}")
+
+            print(f"❌ שגיאת GPT ניסיון {attempt + 1}: {e}")
 
             if attempt < 2:
                 time.sleep(1)
 
-    return "ALLOW"
+    return {
+        "decision": "ALLOW",
+        "reason": "תקלה טכנית"
+    }
 
 # =========================================================
-# MAIN VIDEO ANALYSIS
+# לוגיקת בדיקת סרטון
 # =========================================================
 
 def analyze_video_logic(url):
 
+    print("==================================================")
+    print(f"🎬 התחלת בדיקת סרטון: {url}")
+
     video_id = get_video_id(url)
 
     if not video_id:
-        return "ALLOW"
+
+        print("⚠️ לא נמצא מזהה סרטון")
+
+        return {
+            "decision": "ALLOW",
+            "reason": "לא נמצא מזהה סרטון"
+        }
+
+    print(f"🆔 מזהה סרטון: {video_id}")
 
     total_checked = 0
 
-    # בודק עד 7 thumbnails
+    # בדיקת עד 7 thumbnails
     for i in range(7):
 
         frame_path = download_and_save_frame(video_id, i)
@@ -257,34 +304,64 @@ def analyze_video_logic(url):
 
         try:
 
-            decision = analyze_single_image(frame_path)
+            result = analyze_single_image(frame_path)
 
-            print(f"🖼️ Frame {i + 1}: {decision}")
+            decision = result["decision"]
+            reason = result["reason"]
+
+            print(f"🖼️ תמונה {i + 1}: {decision}")
 
             if decision == "BLOCK":
-                return "BLOCK"
+
+                print("🚫 הסרטון נחסם")
+                print(f"📌 סיבת חסימה: {reason}")
+
+                return {
+                    "decision": "BLOCK",
+                    "reason": reason
+                }
 
         finally:
 
-            # מחיקת הקובץ אחרי שימוש
+            # מחיקת קובץ זמני
             try:
+
                 os.remove(frame_path)
+
+                print(f"🗑️ נמחק קובץ זמני: {frame_path}")
+
             except:
                 pass
 
-    # אם לא הצלחנו לבדוק כלום → ALLOW
+    # אם לא נבדקה אף תמונה
     if total_checked == 0:
-        return "ALLOW"
 
-    return "ALLOW"
+        print("⚠️ לא ניתן היה לבדוק תמונות")
+
+        return {
+            "decision": "ALLOW",
+            "reason": "לא נמצאו תמונות לבדיקה"
+        }
+
+    print("✅ הסרטון אושר")
+
+    return {
+        "decision": "ALLOW",
+        "reason": "כל התמונות עברו"
+    }
 
 # =========================================================
-# ROUTES
+# דף הבית
 # =========================================================
 
 @app.route('/')
 def home():
+
     return render_template('index.html')
+
+# =========================================================
+# API לבדיקה
+# =========================================================
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
@@ -294,38 +371,43 @@ def analyze():
         data = request.json
 
         if not data:
+
             return jsonify({
-                "decision": "ALLOW"
+                "decision": "ALLOW",
+                "reason": "לא התקבל מידע"
             })
 
         url = data.get('url')
 
         if not url:
+
             return jsonify({
-                "decision": "ALLOW"
+                "decision": "ALLOW",
+                "reason": "לא התקבל URL"
             })
 
         result = analyze_video_logic(url)
 
-        return jsonify({
-            "decision": result
-        })
+        return jsonify(result)
 
     except Exception as e:
 
-        print(f"❌ Server Error: {e}")
+        print(f"❌ שגיאת שרת: {e}")
 
         return jsonify({
-            "decision": "ALLOW"
+            "decision": "ALLOW",
+            "reason": "שגיאת שרת"
         })
 
 # =========================================================
-# START SERVER
+# הפעלת השרת
 # =========================================================
 
 if __name__ == "__main__":
 
     port = int(os.environ.get("PORT", 5000))
+
+    print("🚀 השרת הופעל")
 
     app.run(
         host='0.0.0.0',
