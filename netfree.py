@@ -85,7 +85,7 @@ def analyze_single_image(image_path):
                         1. A real (photographic) woman or girl above age 6 is clearly visible — regardless of modesty.
                         2. A non-modest illustrated/drawn woman or girl above age 6 is clearly visible.
                         3. Secular news logos are present (e.g., Channel 12, 13, 11, CNN, etc.).
-                        4. A man or bige boy is clearly visible with an exposed stomach (midriff showing).
+                        4. 4. An exposed stomach is clearly visible — unless it belongs to a baby.
 
                         Everything else → ALLOW.
 
