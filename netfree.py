@@ -172,7 +172,7 @@ CRITICAL RULES:
 BLOCK ONLY IF:
 1. A real female older than about 5 is clearly visible.
 2. A clear drawing/cartoon/illustration of a female older than about 5 is clearly visible.
-3. A full, clear, and complete logo of a secular news channel is clearly visible, such as: Kan 11, Keshet 12, Reshet 13, Channel 14, N12, Walla, Ynet, CNN, BBC, Fox News, Sky News, Al Jazeera, Reuters, AP, NBC, MSNBC, ABC News, CBS News.
+3. A full, clear, and complete logo of a secular news channel is clearly visible.
    - WARNING: Do NOT confuse general Hebrew text, numbers, or circular shapes with news logos.
    - A logo must be a full, complete, and clearly recognizable branded station logo, not just similar-looking text or shapes.
 4. A clearly visible exposed stomach on a non-baby person.
