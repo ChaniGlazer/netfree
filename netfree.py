@@ -165,7 +165,6 @@ CRITICAL RULES:
 - NEVER guess, infer, estimate, hallucinate, or assume details.
 - ONLY block when forbidden content is clearly and confidently visible.
 - If uncertain even slightly → ALLOW.
-- False positives are extremely bad.
 - Ignore blurry, tiny, dark, cropped, partial, distant, unclear, or ambiguous content.
 - Ignore reflections, silhouettes, shadows, emojis, dolls, toys, mannequins, tiny thumbnails, abstract art, and unclear figures.
 - Only evaluate what is actually visible in the image.
@@ -173,7 +172,11 @@ CRITICAL RULES:
 BLOCK ONLY IF:
 1. A real female older than about 5 is clearly visible.
 2. A clear drawing/cartoon/illustration of a female older than about 5 is clearly visible.
-3. A clearly recognizable secular TV/news logo is visible.
+3. BLOCK if any of the following logos are clearly visible:
+- Israeli channels: Keshet 12, Reshet 13, Channel 14, N12, Walla, Ynet
+- International: CNN, BBC, Fox News, Sky News, Al Jazeera, 
+  Reuters, AP, NBC, MSNBC, ABC News, CBS News
+- Any other clearly recognizable secular news/TV network logo
 4. A clearly visible exposed stomach on a non-baby person.
 
 IMPORTANT:
