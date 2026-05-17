@@ -173,7 +173,7 @@ BLOCK ONLY IF:
 1. A real female older than about 5 is clearly visible.
 2. A clear drawing/cartoon/illustration of a female older than about 5 is clearly visible.
 3. Any of the following logos are clearly visible:
-   - Israeli channels: Kan 11, Keshet 12, Reshet 13, Channel 14, N12, Walla, Ynet
+   -  Kan 11, Keshet 12, Reshet 13, Channel 14, N12, Walla, Ynet
    - International: CNN, BBC, Fox News, Sky News, Al Jazeera, Reuters, AP, NBC, MSNBC, ABC News, CBS News
 4. A clearly visible exposed stomach on a non-baby person.
 
