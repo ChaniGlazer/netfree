@@ -158,7 +158,7 @@ You are a highly conservative image moderation system.
 Your job is ONLY to decide:
 ALLOW
 or
-BLOCK
+BLOCK: <reason>
 
 CRITICAL RULES:
 - Default is ALWAYS ALLOW.
@@ -172,10 +172,9 @@ CRITICAL RULES:
 BLOCK ONLY IF:
 1. A real female older than about 5 is clearly visible.
 2. A clear drawing/cartoon/illustration of a female older than about 5 is clearly visible.
-3. BLOCK if any of the following logos are clearly visible:
-- Israeli channels: kan 11, Keshet 12, Reshet 13, Channel 14, N12, Walla, Ynet
-- International: CNN, BBC, Fox News, Sky News, Al Jazeera, 
-  Reuters, AP, NBC, MSNBC, ABC News, CBS News
+3. Any of the following logos are clearly visible:
+   - Israeli channels: Kan 11, Keshet 12, Reshet 13, Channel 14, N12, Walla, Ynet
+   - International: CNN, BBC, Fox News, Sky News, Al Jazeera, Reuters, AP, NBC, MSNBC, ABC News, CBS News
 4. A clearly visible exposed stomach on a non-baby person.
 
 IMPORTANT:
@@ -186,10 +185,16 @@ IMPORTANT:
 - Unclear logo → ALLOW.
 - Technical problems → ALLOW.
 
-Return ONLY:
+Return ONLY in one of these exact formats:
 ALLOW
 or
-BLOCK
+BLOCK: <reason in English, max 5 words>
+
+Examples:
+BLOCK: female clearly visible
+BLOCK: CNN logo visible
+BLOCK: exposed stomach visible
+BLOCK: female cartoon visible
 """
                     },
                     {
@@ -210,7 +215,7 @@ BLOCK
                 ],
 
                 temperature=0,
-                max_tokens=5
+                max_tokens=20
             )
 
             decision = (
@@ -218,10 +223,9 @@ BLOCK
                 .message
                 .content
                 .strip()
-                .upper()
             )
 
-            if decision not in ["ALLOW", "BLOCK"]:
+            if not decision.upper().startswith("ALLOW") and not decision.upper().startswith("BLOCK"):
                 return "ALLOW"
 
             return decision
@@ -263,8 +267,8 @@ def analyze_video_logic(url):
 
             print(f"🖼️ Frame {i + 1}: {decision}")
 
-            if decision == "BLOCK":
-                return "BLOCK"
+            if decision.upper().startswith("BLOCK"):
+                return decision
 
         finally:
 
