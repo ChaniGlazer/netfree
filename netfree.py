@@ -5,6 +5,7 @@ import ssl
 import urllib3
 import re
 import time
+import threading
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -49,6 +50,28 @@ PUBLIC_DIR = os.path.join(os.getcwd(), 'public')
 
 if not os.path.exists(PUBLIC_DIR):
     os.makedirs(PUBLIC_DIR)
+
+# =========================================================
+# CLEANUP - מחיקת תמונות ישנות מעל שעה
+# =========================================================
+
+def cleanup_old_images():
+    while True:
+        try:
+            now = time.time()
+            for filename in os.listdir(PUBLIC_DIR):
+                filepath = os.path.join(PUBLIC_DIR, filename)
+                if os.path.isfile(filepath):
+                    age = now - os.path.getmtime(filepath)
+                    if age > 3600:  # מעל שעה
+                        os.remove(filepath)
+                        print(f"🗑️ נמחק: {filename}")
+        except Exception as e:
+            print(f"❌ Cleanup error: {e}")
+        time.sleep(600)  # בודק כל 10 דקות
+
+cleanup_thread = threading.Thread(target=cleanup_old_images, daemon=True)
+cleanup_thread.start()
 
 # =========================================================
 # YOUTUBE VIDEO ID
@@ -172,9 +195,11 @@ CRITICAL RULES:
 BLOCK ONLY IF:
 1. A real female older than about 5 is clearly visible.
 2. A clear drawing/cartoon/illustration of a female older than about 5 is clearly visible.
-3. Any of the following logos are clearly visible:
-   -  Kan 11, Keshet 12, Reshet 13, Channel 14, N12, Walla, Ynet
+3. A logo of ערוצי טלוויזיה חילוניים כגון is clearly visible:
+   - ערוצי טלוויזיה חילוניים: Kan 11, Keshet 12, Reshet 13, Channel 14, N12, Walla, Ynet
    - International: CNN, BBC, Fox News, Sky News, Al Jazeera, Reuters, AP, NBC, MSNBC, ABC News, CBS News
+   - WARNING: Do NOT confuse general Hebrew text, numbers, or circular shapes with news logos.
+   - A logo must be an actual branded station logo, not just similar-looking text or shapes.
 4. A clearly visible exposed stomach on a non-baby person.
 
 IMPORTANT:
@@ -261,18 +286,16 @@ def analyze_video_logic(url):
 
         total_checked += 1
 
-        try:
-
-            decision = analyze_single_image(frame_path)
+        decision = analyze_single_image(frame_path)
 
             print(f"🖼️ Frame {i + 1}: {decision}")
 
             if decision.upper().startswith("BLOCK"):
-                return decision
+                filename = os.path.basename(frame_path)
+                image_url = f"/public/{filename}"
+                return {"decision": decision, "frame": i + 1, "image_url": image_url}
 
-        finally:
-
-            # מחיקת הקובץ אחרי שימוש
+            # מחיקת הקובץ רק אם לא נחסם
             try:
                 os.remove(frame_path)
             except:
@@ -280,9 +303,9 @@ def analyze_video_logic(url):
 
     # אם לא הצלחנו לבדוק כלום → ALLOW
     if total_checked == 0:
-        return "ALLOW"
+        return {"decision": "ALLOW", "frame": None, "image_url": None}
 
-    return "ALLOW"
+    return {"decision": "ALLOW", "frame": None, "image_url": None}
 
 # =========================================================
 # ROUTES
@@ -291,6 +314,10 @@ def analyze_video_logic(url):
 @app.route('/')
 def home():
     return render_template('index.html')
+
+@app.route('/public/<filename>')
+def serve_image(filename):
+    return app.send_static_file(f'../public/{filename}')
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
@@ -314,7 +341,9 @@ def analyze():
         result = analyze_video_logic(url)
 
         return jsonify({
-            "decision": result
+            "decision": result["decision"],
+            "frame": result["frame"],
+            "image_url": result["image_url"]
         })
 
     except Exception as e:
